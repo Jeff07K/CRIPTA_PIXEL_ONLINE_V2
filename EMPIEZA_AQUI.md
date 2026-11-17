@@ -57,7 +57,7 @@ No necesitas instalar Pygame para la versión web. `pygame-ce` solo sirve para e
 
 ## 4. Para jugar desde Windows y Ubuntu en redes diferentes, SIN depender de tu portátil
 
-Debes publicar el **servidor Python en un alojamiento externo**, no abrir solamente una web estática. Abre `PUBLICAR_EN_INTERNET.md` y sigue los pasos de GitHub + Render. La configuración del ZIP incluye un servicio de pago y un disco persistente para las cuentas y los rankings; **no se ha contratado ni desplegado por ti**.
+Debes publicar el **servidor Python en un alojamiento externo**, no abrir solamente una web estática. Abre `PUBLICAR_EN_INTERNET.md` y sigue los pasos de GitHub + Render. La versión de despliegue gratuita utiliza **Render Free + Neon PostgreSQL Free** sin discos de pago. La conexión real requiere configurar `DATABASE_URL` en Render; **no se ha contratado ni desplegado por ti**.
 
 Después del despliegue, ambos jugadores usan la misma dirección HTTPS pública en sus navegadores. Windows **no necesita permisos de administrador** ni Python.
 

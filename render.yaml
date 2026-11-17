@@ -1,22 +1,14 @@
-# Una sola instancia: las salas viven en memoria y SQLite se guarda en disco.
-# Requiere plan de pago y disco persistente (Render).
-# 0.5c-512mb: compute con coste; revisar precio actual antes de confirmar.
+# Despliegue GRATUITO: Render web Free + Neon PostgreSQL Free.
+# No contiene contraseñas ni crea discos de pago.
 services:
   - type: web
-    name: cripta-pixel-online
-    runtime: python
-    region: virginia
-    plan: 0.5c-512mb
+    name: cripta-pixel-online-v2
+    runtime: docker
+    plan: free
     numInstances: 1
-    buildCommand: python -m compileall -q cloud_server.py server.py server_web.py protocol.py
-    startCommand: python cloud_server.py
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /api/status
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.11
-      - key: CRIPTA_DB_PATH
-        value: /var/data/cripta.db
-    disk:
-      name: cripta-datos
-      mountPath: /var/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false

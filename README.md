@@ -1,3 +1,7 @@
+# PUBLICACIÓN GRATIS — ACTUALIZACIÓN
+
+El repositorio también puede desplegarse en **Render Free + Neon Free**. Lee `PUBLICAR_EN_INTERNET.md`. En Ubuntu continúa funcionando con SQLite. Para la nube se instala `requirements-cloud.txt` dentro de Docker y se usa `DATABASE_URL` de Neon configurada SOLO en Render. No hay disco de pago.
+
 # Cripta Pixel Online — Edición V2: Enemigos animados y especiales renovados
 
 **Juego 2D de mazmorras y arena para navegador (cliente HTML5 + servidor Python).**

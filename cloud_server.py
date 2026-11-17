@@ -29,7 +29,12 @@ def settings_from_env() -> tuple[str, int, Path]:
 
 def run():
     host, port, db_path = settings_from_env()
-    print(f'[CLOUD] Base de datos: {db_path}', flush=True)
+    if os.environ.get('RENDER_SERVICE_ID') and not os.environ.get('DATABASE_URL'):
+        raise RuntimeError('Falta DATABASE_URL en Render: sin Neon las cuentas se perderían al reiniciar.')
+    if os.environ.get('DATABASE_URL'):
+        print('[CLOUD] Persistencia: PostgreSQL de Neon (DATABASE_URL configurada)', flush=True)
+    else:
+        print(f'[CLOUD] Persistencia local: SQLite en {db_path}', flush=True)
     game = GameServer('127.0.0.1', 0, str(db_path))
     gateway = BrowserGateway(game, host, port)
     stop_event = threading.Event()

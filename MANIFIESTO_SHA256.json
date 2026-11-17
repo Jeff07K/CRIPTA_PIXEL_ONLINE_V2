@@ -1,5 +1,5 @@
 {
-  "version": "V2",
+  "version": "V2-Free-Neon",
   "files": {
     ".dockerignore": {
       "sha256": "98e2c9fe998eaa50a8e625bc0b5a749118158319d7dce78ae5f8e62e00503f41",
@@ -42,12 +42,12 @@
       "bytes": 77605
     },
     "Dockerfile": {
-      "sha256": "95e38d039bbde24d0f4ca2bb02ad6d8245bf5961be9682c4697eddc47db1b153",
-      "bytes": 246
+      "sha256": "770990010d49087a47e6265c93c15b1f3bd457afcc917f2487f26607a8eee50f",
+      "bytes": 308
     },
     "EMPIEZA_AQUI.md": {
-      "sha256": "6497e116923f686f1f6f3db510edf34bb2b27569d9c5c7ffad4acb025d8eaafb",
-      "bytes": 4723
+      "sha256": "16d57c313733d612025742627e0b671ca3fa8630af7c5131747ca703eae1cba8",
+      "bytes": 4779
     },
     "GUIA_DEMOSTRACION_CLASE.md": {
       "sha256": "a60bbd82cd78c52191ce2b24031731025617ed2ee6d7ec3aa6605dd0ace15ada",
@@ -65,21 +65,25 @@
       "sha256": "e717c4444835ad6d92359182c7bb06d2971069cd6c743a0616f931cab6fb99ac",
       "bytes": 153
     },
+    "INSTRUCCIONES_APLICAR_PARCHE_GRATIS.md": {
+      "sha256": "623fb7e3cdb1338a6c725e520e27ca04ff9e3fa62f4ee2b58ebf96ea90cea763",
+      "bytes": 2228
+    },
     "PRUEBA_NAVEGADOR.py": {
       "sha256": "d1591e117e56e3d19d784f56d375ab52cec579f55348f0ae060f412f59b769a7",
       "bytes": 8538
     },
     "PUBLICAR_EN_INTERNET.md": {
-      "sha256": "0e1a6a50d8c71d0fe18a2a1e7aac44068e7d7f4a4f99a8450253b413981e3906",
-      "bytes": 4104
+      "sha256": "4952e42cae5a816cffc2dc2acf7d57f727d33ebe2c2b170268bffc4c93194458",
+      "bytes": 5660
     },
     "README.md": {
-      "sha256": "a4bbcf93b632edc29cdc1160bba5ccb2b2f49852f68534b68268ce04eaa0adc2",
-      "bytes": 5604
+      "sha256": "7a2fafa546cf6738c1fdd027b0b5a0025faf1a9c02f9317e71be2b7a71a6e3e1",
+      "bytes": 5944
     },
     "REPORTE_PRUEBAS.md": {
-      "sha256": "92f06beecd14508da99e1bc4f0ffef62554aeaf213625b955b20f8df643be2ca",
-      "bytes": 2642
+      "sha256": "08ba17a1d0b63947d87f996dbdf952fe82cec09ef774a44c570be29d35b17031",
+      "bytes": 3206
     },
     "VISTA_ANIMACIONES_REALES.png": {
       "sha256": "1f043f63947d750ecceb4c49a15b47446713bf13983f93c0e826f6d2385e5cc0",
@@ -254,8 +258,12 @@
       "bytes": 39008
     },
     "cloud_server.py": {
-      "sha256": "07f85f698826599c34760ed69997c1e4c4f10774f8dd67904d6350e0ed8d9f2f",
-      "bytes": 1771
+      "sha256": "09ed0e72a9c75fcce09fbf4659e5beb4eed1aa448ffd83fb4bac9ccf58650d11",
+      "bytes": 2128
+    },
+    "db_postgres.py": {
+      "sha256": "07e6d613fdc98ca2cf47831b17ba98fa84c67583dfe9546742e117155fb781f6",
+      "bytes": 5349
     },
     "generar_animaciones.py": {
       "sha256": "ab9b5707cd5b33d11589a5e63929abc7a57102aa265644edfc825d4aa03c5ea4",
@@ -282,8 +290,12 @@
       "bytes": 1448
     },
     "render.yaml": {
-      "sha256": "3d964bd341f40837dff24ac8e7412bc183e0a2278940a1cecb5b3535f397bf54",
-      "bytes": 716
+      "sha256": "e9723d00c0ec571719f31a157d972bc14c42c7bd1022361f0c57e0d19a2467ff",
+      "bytes": 372
+    },
+    "requirements-cloud.txt": {
+      "sha256": "bfaaa83e718f1e325d7e34ab54f7ff4b4827373de39b3e26f82e1224ff518c05",
+      "bytes": 24
     },
     "requirements-dev.txt": {
       "sha256": "1524dd03cc1c6debddb2ee46d1e4940b26deb8de4f630b3221b77c3cdcf7ed3e",
@@ -294,8 +306,8 @@
       "bytes": 20
     },
     "server.py": {
-      "sha256": "530874a309e43e5d3a65c3c94cdc97da694a5c117e42098c3472cb15de62cc5a",
-      "bytes": 40761
+      "sha256": "7d4ac8cd4523e04d32627dd62c5af6e0e8d45530c7318b7c7a46937e285689ac",
+      "bytes": 41110
     },
     "server_web.py": {
       "sha256": "420bc8253b31385cfdfbe82547f4664d090f98648b7cc7ae8f7b5197b9858a97",
@@ -316,6 +328,10 @@
     "tests/test_http_assets.py": {
       "sha256": "c88a879cd12a7bf150bc76eb388c683ef7ef8d8fefd0a6974aa5740e49dddae5",
       "bytes": 2013
+    },
+    "tests/test_postgres_backend.py": {
+      "sha256": "65815e0d41f82db903fad139bdb004626867527ba9a98f4d00bd1a2c16cf6ad4",
+      "bytes": 4232
     },
     "tests/test_server.py": {
       "sha256": "5011d684770ba43ad63823f4f93dbb1532bf6b1668a095e6606bc24ec818d982",

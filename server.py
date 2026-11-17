@@ -592,7 +592,13 @@ class Room:
 class GameServer:
     def __init__(self, bind_host: str = HOST, port: int = PORT, db_path: str = 'cripta.db'):
         self.bind_host, self.port = bind_host, port
-        self.db = Database(db_path)
+        # En Internet, Neon/PostgreSQL conserva cuentas y rankings entre reinicios.
+        # En local, SQLite mantiene compatibilidad con todas las versiones previas.
+        if os.environ.get('DATABASE_URL'):
+            from db_postgres import PostgresDatabase
+            self.db = PostgresDatabase(os.environ['DATABASE_URL'])
+        else:
+            self.db = Database(db_path)
         self.lock = threading.RLock()
         self.rooms: dict[str, Room] = {}
         self.peers: dict[str, ClientPeer] = {}

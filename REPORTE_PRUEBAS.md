@@ -23,3 +23,11 @@
 - El servidor remoto todavía debe desplegarse por el usuario; no hay URL pública asignada.
 - Las partidas activas no sobreviven a reinicios del proceso; cuentas y resultados guardados persisten si la base de datos SQLite reside en un disco persistente.
 - Las animaciones de los demás enemigos continúan siendo las de la edición anterior; esta V2 mejora específicamente duende y esqueleto.
+
+
+## Actualización para alojamiento gratuito (Render + Neon)
+
+- 46 pruebas automatizadas locales aprobadas, incluidas pruebas de compatibilidad de la capa PostgreSQL usando un adaptador SQL de prueba en SQLite; NO equivalen a conexión real con Neon.
+- Dockerfile instala `psycopg[binary]` y `render.yaml` define `plan: free` sin `disk`.
+- El backend cambia a PostgreSQL solo si Render configura la variable `DATABASE_URL`; en Ubuntu conserva SQLite.
+- La conexión real a la cuenta Neon, la latencia de Internet y un despliegue real en Render siguen pendientes.
