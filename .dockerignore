@@ -1,0 +1,10 @@
+.git
+__pycache__/
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+*.zip
+*.png
+!assets/*.png
+!web/*.png

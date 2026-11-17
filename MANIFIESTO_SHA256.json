@@ -1,0 +1,349 @@
+{
+  "version": "V2",
+  "files": {
+    ".dockerignore": {
+      "sha256": "98e2c9fe998eaa50a8e625bc0b5a749118158319d7dce78ae5f8e62e00503f41",
+      "bytes": 84
+    },
+    ".gitignore": {
+      "sha256": "0521e2040e067febce225e3c39a071af1b24f7148ce56a9e0db18bdd77848518",
+      "bytes": 80
+    },
+    "CAMBIOS_V2.md": {
+      "sha256": "90ef00e478069f53874558c9c1307bfddfb3e16c6f63b1e1175c1bf6fe216ee6",
+      "bytes": 2228
+    },
+    "CAPTURA_COOPERATIVO_ANIMADO.png": {
+      "sha256": "60536d9abb6787c15ace7ab56606aae92c0eead13af5bd87b536e814873742ca",
+      "bytes": 267254
+    },
+    "CAPTURA_MENU_REAL.png": {
+      "sha256": "a15554f43603d7918e6ade0057f89cf1be3e2461bfabafcf60b96df8bd051b63",
+      "bytes": 508433
+    },
+    "CAPTURA_PARTIDA_ANIMADA.png": {
+      "sha256": "4ea0aaff0ccf8010655810009a0560dece7eb18e60173ae55ccda2ccdf39dbc3",
+      "bytes": 273708
+    },
+    "CAPTURA_PVP_ANIMADO.png": {
+      "sha256": "72697fbcf65386867932655155e3253e87966ad628294a725a8e2a3c1d2f713f",
+      "bytes": 250933
+    },
+    "CAPTURA_SALA_ANIMADA.png": {
+      "sha256": "6dc755f6ddbfc73d2ac1aa29e0a2f37ccb0ed7f62dc4da1c35978a5e06b21e54",
+      "bytes": 392905
+    },
+    "DEMO_CAMINATA_REAL.gif": {
+      "sha256": "45464e431c723de4837dca7bac53cb50adcca04b59037128af774829fefc9324",
+      "bytes": 49495
+    },
+    "DEMO_ENEMIGOS_Y_ESPECIALES.gif": {
+      "sha256": "659d0a1231f55b04424f8251d5f0a5adf9aa4c7e51e5da0dbb111677b2d2e8e0",
+      "bytes": 77605
+    },
+    "Dockerfile": {
+      "sha256": "95e38d039bbde24d0f4ca2bb02ad6d8245bf5961be9682c4697eddc47db1b153",
+      "bytes": 246
+    },
+    "EMPIEZA_AQUI.md": {
+      "sha256": "6497e116923f686f1f6f3db510edf34bb2b27569d9c5c7ffad4acb025d8eaafb",
+      "bytes": 4723
+    },
+    "GUIA_DEMOSTRACION_CLASE.md": {
+      "sha256": "a60bbd82cd78c52191ce2b24031731025617ed2ee6d7ec3aa6605dd0ace15ada",
+      "bytes": 2239
+    },
+    "GUIA_PASO_A_PASO.md": {
+      "sha256": "1d4c9c0e9f8b49354a0d50c800d420fc75b06b47245d9d60624a1f55f8bfe1e6",
+      "bytes": 18569
+    },
+    "INICIAR_WEB_UBUNTU.sh": {
+      "sha256": "a4330874e77b89b03252a43b5dde658636bda4efdb26ed8cb67bc6c3b125b8b2",
+      "bytes": 103
+    },
+    "INICIAR_WEB_WINDOWS.bat": {
+      "sha256": "e717c4444835ad6d92359182c7bb06d2971069cd6c743a0616f931cab6fb99ac",
+      "bytes": 153
+    },
+    "PRUEBA_NAVEGADOR.py": {
+      "sha256": "d1591e117e56e3d19d784f56d375ab52cec579f55348f0ae060f412f59b769a7",
+      "bytes": 8538
+    },
+    "PUBLICAR_EN_INTERNET.md": {
+      "sha256": "0e1a6a50d8c71d0fe18a2a1e7aac44068e7d7f4a4f99a8450253b413981e3906",
+      "bytes": 4104
+    },
+    "README.md": {
+      "sha256": "a4bbcf93b632edc29cdc1160bba5ccb2b2f49852f68534b68268ce04eaa0adc2",
+      "bytes": 5604
+    },
+    "REPORTE_PRUEBAS.md": {
+      "sha256": "92f06beecd14508da99e1bc4f0ffef62554aeaf213625b955b20f8df643be2ca",
+      "bytes": 2642
+    },
+    "VISTA_ANIMACIONES_REALES.png": {
+      "sha256": "1f043f63947d750ecceb4c49a15b47446713bf13983f93c0e826f6d2385e5cc0",
+      "bytes": 19687
+    },
+    "VISTA_MEJORAS_V2.png": {
+      "sha256": "4901690d3c5c3def4f2730bb471065eed5af96c6dffe6eab575c4381888c7140",
+      "bytes": 22851
+    },
+    "VISTA_SPRITES_INTEGRADOS.png": {
+      "sha256": "c380e84f7cdd3afb1432cd924aba599088f49b3fe9ddbf8cf29cd5fe4841cb06",
+      "bytes": 11184
+    },
+    "assets/REFERENCIA_ORIGINAL_CABALLERO.png": {
+      "sha256": "a75218b6ed6854779aba08dab2adf5ec77159f42f9b00a2526a8969d85674265",
+      "bytes": 4481
+    },
+    "assets/bat.png": {
+      "sha256": "1270b6af1f1bee06d1d0fc3e77c6717f24acafaba6f13e0a1a6426a520dcfce8",
+      "bytes": 727
+    },
+    "assets/bat_sheet.png": {
+      "sha256": "7b057f46ead9f0628ba4c39fcd61db81b25eb66659188130e14e2dbbb4898e73",
+      "bytes": 3173
+    },
+    "assets/boss.png": {
+      "sha256": "42f30152f97c3259069af0630a43c8a96fc262f9988ef238e1b0afa186cde0a2",
+      "bytes": 758
+    },
+    "assets/boss_sheet.png": {
+      "sha256": "9d67713977e5d758b75bd070110c45f24969b1dd948cdb0c392690ec7f9827cd",
+      "bytes": 3138
+    },
+    "assets/escudo_base.png": {
+      "sha256": "bb51da21ee942731aad216452e72af908156b90aff7a2bb4826bef25cde35a3e",
+      "bytes": 780
+    },
+    "assets/favicon.png": {
+      "sha256": "31752c34fc0e7bbad0d9126bafc7fb478359a2771094edacbb12f9f1e53adbf4",
+      "bytes": 727
+    },
+    "assets/flame.png": {
+      "sha256": "4908f045080dba17fd7c79d32579633f98f1fbe902cb83badb564792de25e15e",
+      "bytes": 585
+    },
+    "assets/flame_sheet.png": {
+      "sha256": "74f34ee47bafc9356b7a354f09e361fe41c6dd02bf55ff4f56fde6be148dde0d",
+      "bytes": 2568
+    },
+    "assets/fx_brutal_sheet.png": {
+      "sha256": "9a15773f8e25afa75cfd3c49ad679bc316ff50333a3b12d76594bb389f73cf7a",
+      "bytes": 4351
+    },
+    "assets/fx_distancia_sheet.png": {
+      "sha256": "37ca1cd26eaaa889bb985246bc6df78b61ad5d1be97ab847d20f4765bdfa6399",
+      "bytes": 1917
+    },
+    "assets/fx_paralisis_sheet.png": {
+      "sha256": "7c47a96e467a75eca86ab6d6fde349c83c3eff245b8d085c167d9ff0e2c0cc62",
+      "bytes": 6685
+    },
+    "assets/fx_veneno_sheet.png": {
+      "sha256": "310bf0b6a1baf9f262b1272780a3b9993a75763788b9b693308689e22efc4f17",
+      "bytes": 5907
+    },
+    "assets/ghost.png": {
+      "sha256": "a18f856c8a575211603665f32652c24ca3d2f1d400a003f690f3681de72e09f6",
+      "bytes": 547
+    },
+    "assets/ghost_sheet.png": {
+      "sha256": "1a313050091fa986542ae872d19aab77690b458c0bbe1fc1730708af6bb91f0a",
+      "bytes": 2335
+    },
+    "assets/goblin.png": {
+      "sha256": "cc2aba2b3ea84844bd2ee4aa54c537842b1c30c46789ac1801634727fbfef5ca",
+      "bytes": 641
+    },
+    "assets/goblin_sheet.png": {
+      "sha256": "2258fbc1726f2d98026974e093985da8f215c05ebecf34451f7fbd9e8debcc81",
+      "bytes": 11457
+    },
+    "assets/hero.png": {
+      "sha256": "1ff9b221c088c82d1047c78bd62a7352f7647cc8758bd3cb02e11b305ea70f36",
+      "bytes": 1099
+    },
+    "assets/knight_azul.png": {
+      "sha256": "3d71b0364ade2f7589ed824f0a2e9271fc0f4aff9e8c1cafc7cb6506fe82f01f",
+      "bytes": 1098
+    },
+    "assets/knight_azul_sheet.png": {
+      "sha256": "e17969f943a3ebf909cf0107cb2b2479ea8b71ce53e718e08d5b7538e4c9b666",
+      "bytes": 33216
+    },
+    "assets/knight_naranja.png": {
+      "sha256": "bcf12e7cb9c45c78a706ec8064f761611745f5c4d996dc1ed1a49ca5c82ff9b4",
+      "bytes": 1099
+    },
+    "assets/knight_naranja_sheet.png": {
+      "sha256": "2e0c0e4fa7573cada04c741fd3a21f663c77e473af83b3238880d9ba6429f35e",
+      "bytes": 33139
+    },
+    "assets/knight_rojo.png": {
+      "sha256": "1ff9b221c088c82d1047c78bd62a7352f7647cc8758bd3cb02e11b305ea70f36",
+      "bytes": 1099
+    },
+    "assets/knight_rojo_sheet.png": {
+      "sha256": "cc3df63b2f4fb7352d80748b18ad4f5181ec14aa8bb6da8e16a0d154ff821cda",
+      "bytes": 33037
+    },
+    "assets/knight_verde.png": {
+      "sha256": "74e25f7404c7c0284906b4ae959e1ade226c1ac83d4081ab90140845c28262b2",
+      "bytes": 1097
+    },
+    "assets/knight_verde_sheet.png": {
+      "sha256": "94c396e8b57d72c0259561c2edd75d9e272ecce08505e71a60d872f38653f763",
+      "bytes": 33161
+    },
+    "assets/logo_slime.png": {
+      "sha256": "e2aaf9e6db378c9ae1b51df5d3de1bbdd821a44bee5c5016f76defba4837291e",
+      "bytes": 1393
+    },
+    "assets/maestros/knight_azul.png": {
+      "sha256": "08671bcf7815e3ef8ca78b84d3350735248d18efddd4d0bb03a6f9e97c55bd4a",
+      "bytes": 2238
+    },
+    "assets/maestros/knight_naranja.png": {
+      "sha256": "25a649cf4258aaa129a3a81aeb4597839fed50946969eac74c4fac43d9f887b8",
+      "bytes": 2239
+    },
+    "assets/maestros/knight_rojo.png": {
+      "sha256": "fdba6824b8d7c6699795a01cf3becbbd468a45af5cb2160a93bc910063594ecd",
+      "bytes": 2232
+    },
+    "assets/maestros/knight_verde.png": {
+      "sha256": "f4e87f46a4bbdc24977ef2e925ff23eae3175a7c019e2bd660e79559a49f501e",
+      "bytes": 2223
+    },
+    "assets/skeleton.png": {
+      "sha256": "ba8abc0cb72cb766d9168ff5fa783b5a7ea5f985146a400eb7b0a42bd18894cb",
+      "bytes": 557
+    },
+    "assets/skeleton_sheet.png": {
+      "sha256": "1a5ab76d1127b89cd54e371f4297de399f102a4af764b404165c1ba9f510d342",
+      "bytes": 10182
+    },
+    "assets/slime.png": {
+      "sha256": "5cb72f89de244284ee783d35ab9bb4aa41c7f4f4f770ced66b038dce7a990cf2",
+      "bytes": 593
+    },
+    "assets/slime_sheet.png": {
+      "sha256": "a72ae57e4749e476042fcc16e6d2d9afcccbf9e2c576626eca2889c5c057b4d3",
+      "bytes": 2521
+    },
+    "assets/terrain_arena.png": {
+      "sha256": "af3524480983ce9535dd99a7dbb883b24725d06b0f1b434e61ef8a7a46e69d20",
+      "bytes": 376
+    },
+    "assets/terrain_fire.png": {
+      "sha256": "72523eb8f9510124e70f7cbc81cc95cb6e8f2c9f0d9e97cac58510ad54212036",
+      "bytes": 743
+    },
+    "assets/terrain_forest.png": {
+      "sha256": "cdd518c3481b877da2876c1e2177cf67131d89b812e3581f8c0876e4a12d523e",
+      "bytes": 801
+    },
+    "assets/terrain_ice.png": {
+      "sha256": "01755ab00afa874826a8becbed4c98615924a05bf4d7d571d6a9a002bc3ba555",
+      "bytes": 804
+    },
+    "client.py": {
+      "sha256": "ecf7b35931d43320ba43debed2bc0ca1cfe1e55d18803bf949f3fa52e294f180",
+      "bytes": 39008
+    },
+    "cloud_server.py": {
+      "sha256": "07f85f698826599c34760ed69997c1e4c4f10774f8dd67904d6350e0ed8d9f2f",
+      "bytes": 1771
+    },
+    "generar_animaciones.py": {
+      "sha256": "ab9b5707cd5b33d11589a5e63929abc7a57102aa265644edfc825d4aa03c5ea4",
+      "bytes": 14051
+    },
+    "generar_demo_v2.py": {
+      "sha256": "66934ae81ad894c31923861a7b67f4e96ce2acfe78508c302058933a5af494b6",
+      "bytes": 2233
+    },
+    "generar_enemigos_y_efectos.py": {
+      "sha256": "f9d9b893cc1dbcbb8f65841c0f5c5e47a848b8b34fb367292ecbc43bbe347f7d",
+      "bytes": 13189
+    },
+    "generar_escenarios.py": {
+      "sha256": "3dfe2f0ceb464f3a3c83574293bd408f9f4a47f7901a143bfab7bbb52bfb01e0",
+      "bytes": 3546
+    },
+    "generar_gif_demo.py": {
+      "sha256": "73f7f3febd4c92406d62eeaeab15aba20a3064cbc2948dd418a2f20bfc014930",
+      "bytes": 1215
+    },
+    "protocol.py": {
+      "sha256": "55d03765e4d90401a7ac15e5cb24cfebec95d9f326b09eaf3e2ba288bf44d1d5",
+      "bytes": 1448
+    },
+    "render.yaml": {
+      "sha256": "3d964bd341f40837dff24ac8e7412bc183e0a2278940a1cecb5b3535f397bf54",
+      "bytes": 716
+    },
+    "requirements-dev.txt": {
+      "sha256": "1524dd03cc1c6debddb2ee46d1e4940b26deb8de4f630b3221b77c3cdcf7ed3e",
+      "bytes": 16
+    },
+    "requirements.txt": {
+      "sha256": "c9126566c82f2633accda09843968a49bc1359b7409313668f317f555791fb47",
+      "bytes": 20
+    },
+    "server.py": {
+      "sha256": "530874a309e43e5d3a65c3c94cdc97da694a5c117e42098c3472cb15de62cc5a",
+      "bytes": 40761
+    },
+    "server_web.py": {
+      "sha256": "420bc8253b31385cfdfbe82547f4664d090f98648b7cc7ae8f7b5197b9858a97",
+      "bytes": 12074
+    },
+    "tests/test_animation.py": {
+      "sha256": "e1a6149648d6326589ff9ed4b99e6eee51e27df627abe6e2b19edc174b2275d2",
+      "bytes": 4866
+    },
+    "tests/test_asset_integration.py": {
+      "sha256": "1921a86e19b332bf75674058f78677ea11077a1c22422cf1fedf9b47ff96a5cb",
+      "bytes": 1695
+    },
+    "tests/test_cloud_smoke.py": {
+      "sha256": "5264f834f6feea78e7296649fe446cffb5b96a9acd0327ad6e8d042227b33aa8",
+      "bytes": 3378
+    },
+    "tests/test_http_assets.py": {
+      "sha256": "c88a879cd12a7bf150bc76eb388c683ef7ef8d8fefd0a6974aa5740e49dddae5",
+      "bytes": 2013
+    },
+    "tests/test_server.py": {
+      "sha256": "5011d684770ba43ad63823f4f93dbb1532bf6b1668a095e6606bc24ec818d982",
+      "bytes": 7397
+    },
+    "tests/test_specials.py": {
+      "sha256": "7a12afaa7affbe76346e5974e8a6d301c236f65f678fa8cb87530b3cc0055cee",
+      "bytes": 8476
+    },
+    "tests/test_v2_enemy_fx.py": {
+      "sha256": "3ca4177f78ef0b0fddbdd6e8b65d0db7eab8054ebd7332f5e0331361837dcb1e",
+      "bytes": 2816
+    },
+    "tests/test_web_multiplayer.py": {
+      "sha256": "661e52743208228216570f53a234215170730ec3190875118c651c5f307752d8",
+      "bytes": 12423
+    },
+    "web/app.js": {
+      "sha256": "19b736f1ed5090f202b94aae9a4b1470f4799a24262ba506ea160f71855fc140",
+      "bytes": 39103
+    },
+    "web/index.html": {
+      "sha256": "c8b5f33f1aa7209812d2c00b799459de0902e24d0b1ed7939d89bf2d2387c201",
+      "bytes": 13204
+    },
+    "web/style.css": {
+      "sha256": "b661b61f0babd481e83145aefe6653998c30223a19a11416ba5f97f7809c55a8",
+      "bytes": 21149
+    }
+  }
+}
