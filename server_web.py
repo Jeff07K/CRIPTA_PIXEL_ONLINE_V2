@@ -44,30 +44,55 @@ class BrowserPeer:
         self.room_id = None
         self.alive = True
         self.last_seen = time.monotonic()
-        self._lock = threading.Lock()
+        self._condition = threading.Condition()
         self._events = collections.deque(maxlen=80)
         self._last_snapshot = None
+        self._delivered_map_key = None
 
     def send(self, payload: dict):
         if not self.alive:
             return
-        with self._lock:
+        with self._condition:
             if payload.get('type') == 'game_state':
+                # Solo guardar el estado mas reciente: nunca acumular frames atrasados.
                 self._last_snapshot = payload
             else:
                 self._events.append(payload)
+            self._condition.notify_all()
+
+    def _drain_unlocked(self) -> list[dict]:
+        events = list(self._events)
+        self._events.clear()
+        if self._last_snapshot is not None:
+            snapshot = self._last_snapshot
+            self._last_snapshot = None
+            # The map never changes within one room/floor. Keep it on first
+            # delivery only, not on every network frame. For dropped/coalesced
+            # frames we still send a complete map after a floor change.
+            map_key = (snapshot.get('code'), snapshot.get('mode'), snapshot.get('floor'))
+            if map_key == self._delivered_map_key:
+                snapshot = dict(snapshot)
+                snapshot.pop('map', None)
+            else:
+                self._delivered_map_key = map_key
+            events.append(snapshot)
+        return events
 
     def drain(self) -> list[dict]:
-        with self._lock:
-            events = list(self._events)
-            self._events.clear()
-            if self._last_snapshot is not None:
-                events.append(self._last_snapshot)
-                self._last_snapshot = None
-            return events
+        with self._condition:
+            return self._drain_unlocked()
+
+    def wait_events(self, timeout: float = 8.0) -> list[dict]:
+        # SSE espera sin consumir CPU y despierta inmediatamente ante nuevos datos.
+        with self._condition:
+            if self.alive and not self._events and self._last_snapshot is None:
+                self._condition.wait(timeout)
+            return self._drain_unlocked()
 
     def close(self):
-        self.alive = False
+        with self._condition:
+            self.alive = False
+            self._condition.notify_all()
 
 
 class BrowserGateway:
@@ -117,7 +142,8 @@ class BrowserGateway:
     def start(self):
         gateway = self
         class Handler(BaseHTTPRequestHandler):
-            server_version = 'CriptaPixel/2.0'
+            server_version = 'CriptaPixel/2.1'
+            protocol_version = 'HTTP/1.1'
             sys_version = ''
 
             def log_message(self, fmt, *args):
@@ -184,7 +210,43 @@ class BrowserGateway:
                     if not peer:
                         self._json(401, {'ok':False, 'error':'Sesion vencida. Vuelve a conectar.'})
                         return
-                    self._json(200, {'ok':True, 'events':peer.drain()})
+                    wait = parse_qs(url.query).get('wait', ['0'])[0] == '1'
+                    events = peer.wait_events(timeout=1.2) if wait else peer.drain()
+                    self._json(200, {'ok':True, 'events':events})
+                    return
+                if url.path == '/api/stream':
+                    # SSE (un solo GET persistente): compatible con navegadores moviles y Render.
+                    # Nunca exponer tokens en logs; conservar /api/events como fallback.
+                    token = parse_qs(url.query).get('session', [''])[0]
+                    peer = gateway.lookup(token)
+                    if not peer:
+                        self._json(401, {'ok':False, 'error':'Sesion vencida'})
+                        return
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+                    self.send_header('Cache-Control', 'no-cache, no-transform')
+                    self.send_header('X-Accel-Buffering', 'no')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.send_header('Referrer-Policy', 'no-referrer')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.close_connection = True
+                    try:
+                        self.wfile.write(b': connected\n\n')
+                        self.wfile.flush()
+                        while gateway._running and peer.alive:
+                            events = peer.wait_events(timeout=8.0)
+                            if not peer.alive or not gateway._running:
+                                break
+                            if events:
+                                data = json.dumps({'events':events}, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+                                self.wfile.write(b'data: ' + data + b'\n\n')
+                            else:
+                                self.wfile.write(b': keepalive\n\n')
+                            self.wfile.flush()
+                            peer.last_seen = time.monotonic()
+                    except (BrokenPipeError, ConnectionResetError, OSError):
+                        pass
                     return
                 # Servir solamente archivos conocidos, sin recorrer el filesystem.
                 if url.path in ('/', '/index.html'):

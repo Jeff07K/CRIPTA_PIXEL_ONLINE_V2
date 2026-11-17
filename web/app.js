@@ -6,7 +6,9 @@ const app = {
   session:null, key:'',name:'',scene:'auth',room:null,state:null,results:null,
   ranking:[],rankDay:'',rankMode:'solo', active:true, lastState:0,lastPoll:0,
   inputBusy:false,attackQueued:false,specialQueued:false,defendQueued:false,specialChoice:'brutal',pressed:new Set(),touch:new Set(),
-  view:new Map(),worldProps:[],floorKey:'',tileCanvas:null,lastFrame:performance.now(),
+  stream:null,streamActive:false,nextStreamTry:0,inputSeq:Date.now()*1000,lastMove:{dx:0,dy:0,at:0},
+  view:new Map(),positionHistory:new Map(),worldProps:[],floorKey:'',tileCanvas:null,minimapBase:null,lastFrame:performance.now(),
+  rttMs:80,perfFrames:0,perfSampleAt:performance.now(),fps:60,netIndicator:null,hudRoster:'',
   images:{}, frame:0,requestInProgress:false,animations:new Map(),particles:[],previousHP:new Map(),specialEffects:[],effectSeq:new Map(),shake:0,soundEnabled:true,audio:null,cameraZoom:1.12
 };
 const sprites = ['hero','knight_rojo','knight_azul','knight_verde','knight_naranja','slime','bat','goblin','skeleton','flame','boss','ghost',
@@ -46,6 +48,12 @@ audioButton.addEventListener('click',()=>{
 document.querySelector('.top-right')?.prepend(audioButton);
 const W=896,H=576,TILE=32;
 const canvas=$('world'),ctx=canvas.getContext('2d',{alpha:false});
+const netIndicator=document.createElement('span');
+netIndicator.id='network-indicator';
+netIndicator.title='RTT aproximado de controles y fotogramas reales del navegador';
+netIndicator.style.cssText='font-size:10px;color:#80e8a6;white-space:nowrap';
+document.querySelector('#game .under-map')?.appendChild(netIndicator);
+app.netIndicator=netIndicator;
 ctx.imageSmoothingEnabled=false;
 let toastTimeout;
 function toast(message) {
@@ -84,25 +92,52 @@ async function connect(){
 }
 async function send(action){
   if(!app.session){if(!await connect())return false;}
-  try{await post('/api/action',{session:app.session,action});return true;}
-  catch(e){if(e.message.includes('Sesion')||e.message.includes('401')){app.session=null;setConnected(false);scene('auth');}
+  const started=performance.now();
+  try{await post('/api/action',{session:app.session,action});
+    if(action.type==='input'){const ms=performance.now()-started;app.rttMs=.8*app.rttMs+.2*Math.min(1500,ms);}
+    return true;}
+  catch(e){if(e.message.includes('Sesion')||e.message.includes('401')){stopEventStream();app.session=null;setConnected(false);scene('auth');}
     else if(action.type!=='input')toast('Red: '+e.message);return false;}
 }
-async function poll(){
-  if(!app.session||app.requestInProgress)return;
-  app.requestInProgress=true;
-  try{
-    const data=await fetchJSON('/api/events?session='+encodeURIComponent(app.session));
-    setConnected(true);
-    for(const event of data.events||[])handleMessage(event);
-    app.lastPoll=Date.now();
-  }catch(e){
-    if(e.message.includes('Sesion')){app.session=null;sessionStorage.removeItem('cripta_session');setConnected(false);scene('auth');toast('La sesión expiró. Inicia sesión nuevamente.');}
-    else if(Date.now()-app.lastPoll>4500){setConnected(false);}
-  }finally{app.requestInProgress=false;}
-}
-async function pollLoop(){while(true){if(!app.session){await new Promise(r=>setTimeout(r,450));continue;}
-  await poll();await new Promise(r=>setTimeout(r,95));}}
+ function stopEventStream(){
+   if(app.stream){app.stream.close();app.stream=null;}
+   app.streamActive=false;
+ }
+ function applyEvents(events){
+   setConnected(true);app.lastPoll=Date.now();
+   for(const event of events||[])handleMessage(event);
+ }
+ async function poll(){
+   if(!app.session||app.requestInProgress)return;
+   app.requestInProgress=true;
+   try{
+     const data=await fetchJSON('/api/events?wait=1&session='+encodeURIComponent(app.session));
+     applyEvents(data.events);
+   }catch(e){
+     if(e.message.includes('Sesion')){stopEventStream();app.session=null;sessionStorage.removeItem('cripta_session');setConnected(false);scene('auth');toast('La sesión expiró. Inicia sesión nuevamente.');}
+     else if(Date.now()-app.lastPoll>4500){setConnected(false);}
+   }finally{app.requestInProgress=false;}
+ }
+ function startEventStream(){
+   if(!window.EventSource||!app.session||app.stream)return;
+   const stream=new EventSource('/api/stream?session='+encodeURIComponent(app.session));
+   app.stream=stream;app.streamActive=false;
+   stream.onopen=()=>{if(app.stream===stream){app.streamActive=true;setConnected(true);app.lastPoll=Date.now();}};
+   stream.onmessage=ev=>{
+     if(app.stream!==stream)return;
+     try{applyEvents(JSON.parse(ev.data).events);}catch(_){/* Mal mensaje: esperar el siguiente. */}
+   };
+   stream.onerror=()=>{
+     if(app.stream===stream){stopEventStream();app.nextStreamTry=Date.now()+10000;}
+   };
+ }
+ // SSE evita esperar a la siguiente encuesta HTTP; /api/events conserva compatibilidad.
+ async function pollLoop(){while(true){
+   if(!app.session){await new Promise(r=>setTimeout(r,350));continue;}
+   if(window.EventSource && !app.stream && Date.now()>=app.nextStreamTry)startEventStream();
+   if(app.stream){await new Promise(r=>setTimeout(r,250));continue;}
+   await poll();await new Promise(r=>setTimeout(r,95));
+ }}
 function handleMessage(event){
   const type=event.type;
   if(type==='hello')return;
@@ -126,11 +161,16 @@ function handleMessage(event){
     return;
   }
   if(type==='game_state'){
+    // Network snapshots can omit the unchanged terrain to reduce bandwidth.
+    // A new room/floor must always arrive with a full terrain map.
+    if(!event.map && app.state?.code===event.code && app.state?.floor===event.floor)event.map=app.state.map;
+    if(!event.map)return; // A broken/out-of-order delta must not corrupt rendering.
     processCombatFeedback(event);
+    recordPositions(event);
     app.state=event;app.lastState=Date.now();
     if(app.scene==='lobby'||(app.scene==='game')){
       if(app.scene!=='game')scene('game');
-      updateGameHUD(event);
+      if(!app.lastHudAt||Date.now()-app.lastHudAt>=150){updateGameHUD(event);app.lastHudAt=Date.now();}
     }
     return;
   }
@@ -145,7 +185,7 @@ function handleMessage(event){
     if(app.scene==='ranking')renderRanking();return;
   }
   if(type==='left_room'){
-    app.room=null;app.state=null;app.view.clear();app.animations.clear();app.previousHP.clear();app.specialEffects=[];app.effectSeq.clear();app.particles=[];app.floorKey='';
+    app.room=null;app.state=null;app.hudRoster='';app.view.clear();app.animations.clear();app.previousHP.clear();app.specialEffects=[];app.effectSeq.clear();app.particles=[];app.floorKey='';
     return;
   }
 }
@@ -260,19 +300,30 @@ function updateGameHUD(state){
     $('hud-special').textContent='Q · '+(names[me.special]||'ESPECIAL')+' · '+(me.special_ready_in>0?me.special_ready_in+'s':'LISTO');
     $('special-meter').style.width=(100*(1-Math.min(6,me.special_ready_in)/6)).toFixed(1)+'%';
     $('defense-meter').style.width=(100*(1-Math.min(3,me.defense_ready_in)/3)).toFixed(1)+'%';
-    $('hud-defense').textContent='E · '+(me.blocking?'BLOQUEANDO'+(me.block_reduction?' (último '+me.block_reduction+' %)':''):me.defense_ready_in>0?me.defense_ready_in+'s':'LISTA');
+    $('hud-defense').textContent='E · '+(me.blocking?'ESCUDO '+(me.block_remaining??0).toFixed(1)+'s'+(me.block_reduction?' (último '+me.block_reduction+' %)':''):me.defense_ready_in>0?me.defense_ready_in+'s':'LISTA');
     $('touch-special').disabled=me.special_ready_in>0||me.hp<=0;
     $('touch-defend').disabled=me.defense_ready_in>0||me.hp<=0;
   }
-  const hud=$('hud-party');hud.innerHTML='';
-  for(const p of state.players){
-    const el=document.createElement('div');el.className='hud-player';
-    const name=document.createElement('div');name.className='hud-name';
-    const b=document.createElement('strong');b.textContent=p.name+' ['+(p.color||'rojo')+']'+(p.key===app.key?' ★':'');
-    const hp=document.createElement('span');hp.textContent=p.hp+' HP';
-    name.append(b,hp);el.appendChild(name);
-    const bar=document.createElement('div');bar.className='hp-track';
-    const fill=document.createElement('div');fill.style.width=Math.max(0,Math.min(100,p.hp))+'%';fill.style.background=p.hp<35?'#fd8b8b':'#80e8a6';bar.appendChild(fill);el.appendChild(bar);hud.appendChild(el);
+  const hud=$('hud-party');
+  const roster=state.players.map(p=>p.key+':'+p.name+':'+p.color).join('|');
+  if(app.hudRoster!==roster){
+    app.hudRoster=roster;hud.replaceChildren();
+    for(const p of state.players){
+      const el=document.createElement('div');el.className='hud-player';el.dataset.key=p.key;
+      const name=document.createElement('div');name.className='hud-name';
+      const b=document.createElement('strong');b.textContent=p.name+' ['+(p.color||'rojo')+']'+(p.key===app.key?' ★':'');
+      const hp=document.createElement('span');name.append(b,hp);el.appendChild(name);
+      const bar=document.createElement('div');bar.className='hp-track';
+      const fill=document.createElement('div');bar.appendChild(fill);el.appendChild(bar);hud.appendChild(el);
+    }
+  }
+  for(const [i,p] of state.players.entries()){
+    const el=hud.children[i],hp=el.querySelector('span'),fill=el.querySelector('.hp-track > div');
+    if(hp.textContent!==p.hp+' HP')hp.textContent=p.hp+' HP';
+    const width=Math.max(0,Math.min(100,p.hp))+'%';
+    if(fill.style.width!==width)fill.style.width=width;
+    const color=p.hp<35?'#fd8b8b':'#80e8a6';
+    if(fill.style.background!==color)fill.style.background=color;
   }
   drawMiniMap(state);
   const msg=$('world-message');msg.hidden=!state.message;msg.textContent=state.message||'';
@@ -281,13 +332,21 @@ function drawMiniMap(state){
   const mini=$('minimap');if(!mini||!state?.map)return;
   const g=mini.getContext('2d');g.imageSmoothingEnabled=false;
   const tile=6,w=168,h=108;
-  g.fillStyle='#0c1523';g.fillRect(0,0,w,h);
-  for(let y=0;y<state.map.length;y++)for(let x=0;x<state.map[y].length;x++){
-    const c=state.map[y][x];
-    g.fillStyle=c==='#'?'#344157':c==='X'?'#88919e':
+  // Cache the static dungeon once; repaint only actors on each HUD refresh.
+  const key=state.code+'|'+state.mode+'|'+state.floor;
+  if(!app.minimapBase || app.minimapBase.key!==key){
+    const layer=document.createElement('canvas');layer.width=w;layer.height=h;
+    const bg=layer.getContext('2d');bg.imageSmoothingEnabled=false;
+    bg.fillStyle='#0c1523';bg.fillRect(0,0,w,h);
+    for(let y=0;y<state.map.length;y++)for(let x=0;x<state.map[y].length;x++){
+      const c=state.map[y][x];
+      bg.fillStyle=c==='#'?'#344157':c==='X'?'#88919e':
         state.mode==='pvp'?'#3f4861':state.floor===1?'#31543f':state.floor===2?'#496f86':'#653e40';
-    g.fillRect(x*tile,y*tile,tile,tile);
+      bg.fillRect(x*tile,y*tile,tile,tile);
+    }
+    app.minimapBase={key,layer};
   }
+  g.drawImage(app.minimapBase.layer,0,0);
   for(const e of state.enemies){g.fillStyle=e.kind==='boss'?'#ffc76f':'#f17d78';g.fillRect(Math.round(e.x/TILE*tile)-2,Math.round(e.y/TILE*tile)-2,4,4);}
   for(const p of state.players){if(p.hp<=0)continue;g.fillStyle=playerColor(0,p.color);g.fillRect(Math.round(p.x/TILE*tile)-3,Math.round(p.y/TILE*tile)-3,6,6);
     if(p.key===app.key){g.strokeStyle='#faf4d9';g.lineWidth=1;g.strokeRect(Math.round(p.x/TILE*tile)-4,Math.round(p.y/TILE*tile)-4,8,8);}}
@@ -301,32 +360,45 @@ const directionKeys={w:'up',ArrowUp:'up',s:'down',ArrowDown:'down',a:'left',Arro
 window.addEventListener('keydown',e=>{
   if(app.scene!=='game')return;
   if(e.target instanceof HTMLInputElement)return;
-  if(directionKeys[e.key]||directionKeys[e.key.toLowerCase()]){app.pressed.add(directionKeys[e.key]||directionKeys[e.key.toLowerCase()]);e.preventDefault();}
-  if(e.code==='Space'){if(!e.repeat)app.attackQueued=true;e.preventDefault();}
-  if(e.code==='KeyQ'){if(!e.repeat)app.specialQueued=true;e.preventDefault();}
-  if(e.code==='KeyE'){if(!e.repeat)app.defendQueued=true;e.preventDefault();}
+  if(directionKeys[e.key]||directionKeys[e.key.toLowerCase()]){app.pressed.add(directionKeys[e.key]||directionKeys[e.key.toLowerCase()]);e.preventDefault();requestInput();}
+  if(e.code==='Space'){if(!e.repeat){app.attackQueued=true;requestInput(true);}e.preventDefault();}
+  if(e.code==='KeyQ'){if(!e.repeat){app.specialQueued=true;requestInput(true);}e.preventDefault();}
+  if(e.code==='KeyE'){if(!e.repeat){app.defendQueued=true;requestInput(true);}e.preventDefault();}
   if(e.key==='Escape')$('leave-game').click();
 });
-window.addEventListener('keyup',e=>{const d=directionKeys[e.key]||directionKeys[e.key.toLowerCase()];if(d)app.pressed.delete(d);});
-window.addEventListener('blur',()=>{app.pressed.clear();app.touch.clear();});
+window.addEventListener('keyup',e=>{const d=directionKeys[e.key]||directionKeys[e.key.toLowerCase()];if(d){app.pressed.delete(d);requestInput();}});
+window.addEventListener('blur',()=>{app.pressed.clear();app.touch.clear();requestInput();});
 for(const b of document.querySelectorAll('[data-move]')){
   const key=b.dataset.move;
-  b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);app.touch.add(key);b.classList.add('pressed');});
-  const end=e=>{e.preventDefault();app.touch.delete(key);b.classList.remove('pressed');};
-  b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);b.addEventListener('lostpointercapture',()=>{app.touch.delete(key);b.classList.remove('pressed');});
+  b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);app.touch.add(key);b.classList.add('pressed');requestInput();});
+  const end=e=>{e.preventDefault();app.touch.delete(key);b.classList.remove('pressed');requestInput();};
+  b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);b.addEventListener('lostpointercapture',()=>{app.touch.delete(key);b.classList.remove('pressed');requestInput();});
 }
-$('touch-attack').addEventListener('pointerdown',e=>{e.preventDefault();app.attackQueued=true;});
-$('touch-special').addEventListener('pointerdown',e=>{e.preventDefault();app.specialQueued=true;});
-$('touch-defend').addEventListener('pointerdown',e=>{e.preventDefault();app.defendQueued=true;});
-setInterval(()=>{
-  if(app.scene!=='game'||!app.session||app.inputBusy)return;
-  const s=new Set([...app.pressed,...app.touch]);
-  const dx=Number(s.has('right'))-Number(s.has('left'));
-  const dy=Number(s.has('down'))-Number(s.has('up'));
-  const attack=app.attackQueued,special_attack=app.specialQueued,defend=app.defendQueued;
-  app.attackQueued=app.specialQueued=app.defendQueued=false;app.inputBusy=true;
-  send({type:'input',dx,dy,attack,special_attack,defend}).finally(()=>{app.inputBusy=false});
-},70);
+$('touch-attack').addEventListener('pointerdown',e=>{e.preventDefault();app.attackQueued=true;requestInput(true);});
+$('touch-special').addEventListener('pointerdown',e=>{e.preventDefault();app.specialQueued=true;requestInput(true);});
+$('touch-defend').addEventListener('pointerdown',e=>{e.preventDefault();app.defendQueued=true;requestInput(true);});
+ // Solo emitir controles al cambiar de direccion, al usar Espacio/Q/E o cada 250 ms
+ // si se mantiene el movimiento. Las acciones tienen prioridad y no esperan a
+ // una peticion de movimiento lenta. seq protege frente a llegadas desordenadas.
+ function requestInput(priority=false){
+   if(app.scene!=='game'||!app.session)return;
+   const s=new Set([...app.pressed,...app.touch]);
+   const dx=Number(s.has('right'))-Number(s.has('left'));
+   const dy=Number(s.has('down'))-Number(s.has('up'));
+   const attack=app.attackQueued,special_attack=app.specialQueued,defend=app.defendQueued;
+   const action=attack||special_attack||defend;
+   const now=Date.now(), changed=dx!==app.lastMove.dx||dy!==app.lastMove.dy;
+   if(!changed&&!action&&(!(dx||dy)||now-app.lastMove.at<250))return;
+   if(app.inputBusy&&!priority&&!action)return;
+   app.attackQueued=app.specialQueued=app.defendQueued=false;
+   app.lastMove={dx,dy,at:now};
+   const seq=app.inputSeq=Math.max(app.inputSeq+1,Date.now()*1000);
+   if(!action)app.inputBusy=true;
+   send({type:'input',seq,dx,dy,attack,special_attack,defend}).finally(()=>{
+     if(!action){app.inputBusy=false;requestInput();}
+   });
+ }
+ setInterval(()=>requestInput(),50);
 setInterval(()=>{if(app.scene==='ranking')refreshRanking();},15000);
 // Pixel-art graphics. Draws a deterministic, cached map; game positions come from Python.
 const PALETTES={
@@ -364,7 +436,7 @@ function drawTile(g,x,y,cell,colors,salt){
 function tileCache(state){
   const key=state.mode+'-'+state.floor+'-'+state.map.join('');
   if(key===app.floorKey&&app.tileCanvas)return;
-  app.floorKey=key;app.view.clear();app.animations.clear();app.previousHP.clear();app.specialEffects=[];app.effectSeq.clear();app.particles=[];app.worldProps=[];
+  app.floorKey=key;app.view.clear();app.positionHistory.clear();app.minimapBase=null;app.animations.clear();app.previousHP.clear();app.specialEffects=[];app.effectSeq.clear();app.particles=[];app.worldProps=[];
   const layer=document.createElement('canvas');layer.width=W;layer.height=H;
   const g=layer.getContext('2d');g.imageSmoothingEnabled=false;
   const p=PALETTES[state.mode==='pvp'?'pvp':state.floor]||PALETTES[1];
@@ -399,11 +471,83 @@ function tileCache(state){
   }
   app.tileCanvas=layer;
 }
-function smoothPosition(id,x,y,step){
-  const old=app.view.get(id);
-  if(!old||Math.hypot(x-old.x,y-old.y)>120){const v={x,y};app.view.set(id,v);return v;}
-  const alpha=Math.min(.65,Math.max(.08,step*16));
-  old.x+=(x-old.x)*alpha;old.y+=(y-old.y)*alpha;return old;
+// Visual interpolation and prediction never change the server-authoritative
+// coordinates, collisions, HP, scores or combat rules.
+const ACTOR_SPEED=145, REMOTE_DELAY_MS=105, MAX_REMOTE_EXTRAP_MS=65;
+function recordPositions(state){
+  const t=performance.now();
+  const seen=new Set();
+  for(const [prefix,list] of [['p',state.players],['e',state.enemies]])for(const ob of list){
+    const key=prefix+(prefix==='p'?ob.key:ob.id);seen.add(key);
+    const latest={x:ob.x,y:ob.y,t};
+    const history=app.positionHistory.get(key);
+    // Reset immediately on teleport, respawn or a new level.
+    if(!history||Math.hypot(ob.x-history.latest.x,ob.y-history.latest.y)>100){
+      app.positionHistory.set(key,{prev:latest,latest});app.view.delete(key);
+    }else app.positionHistory.set(key,{prev:history.latest,latest});
+  }
+  for(const key of app.positionHistory.keys())if(!seen.has(key))app.positionHistory.delete(key);
+}
+function solidAt(map,x,y,radius=10){
+  if(!map)return false;
+  for(const px of [x-radius,x+radius])for(const py of [y-radius,y+radius]){
+    const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
+    if(ty<0||ty>=map.length||tx<0||tx>=map[0].length||'#X'.includes(map[ty][tx]))return true;
+  }
+  return false;
+}
+function moveVisual(pos,dx,dy,map){
+  // Match the server's axis-wise solid() rule; split long moves to avoid
+  // crossing a narrow wall on a low frame-rate phone.
+  const steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/8));
+  for(let i=0;i<steps;i++){
+    const sx=dx/steps,sy=dy/steps;
+    if(!solidAt(map,pos.x+sx,pos.y))pos.x+=sx;
+    if(!solidAt(map,pos.x,pos.y+sy))pos.y+=sy;
+  }
+  return pos;
+}
+function smoothPosition(id,x,y,dt,isLocal=false){
+  const h=app.positionHistory.get(id),now=performance.now();
+  if(!h){const direct={x,y};app.view.set(id,direct);return direct;}
+  let p=app.view.get(id);
+  if(!p||Math.hypot(p.x-x,p.y-y)>100){p={x,y};app.view.set(id,p);}
+  if(isLocal){
+    const s=new Set([...app.pressed,...app.touch]);
+    let dx=Number(s.has('right'))-Number(s.has('left'));
+    let dy=Number(s.has('down'))-Number(s.has('up'));
+    if(app.state?.players.find(o=>o.key===app.key)?.paralyzed)dx=dy=0;
+    const mag=Math.hypot(dx,dy);if(mag>0){dx/=mag;dy/=mag;}
+    const freshness=now-h.latest.t;
+    // Local rendering reacts on this frame; stop predicting on stale network.
+    const beforeX=p.x,beforeY=p.y;
+    if(freshness<420&&mag>0)moveVisual(p,dx*ACTOR_SPEED*dt,dy*ACTOR_SPEED*dt,app.state.map);
+    p.predictedMoving=mag>0&&freshness<420&&Math.hypot(p.x-beforeX,p.y-beforeY)>.05;
+    p.predictedFace=mag>0?(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')):null;
+    const lead=Math.max(0,Math.min(.19,Math.min(180,freshness)/1000+app.rttMs/2000));
+    const projected=moveVisual({x,y},dx*ACTOR_SPEED*lead,dy*ACTOR_SPEED*lead,app.state.map);
+    const error=Math.hypot(projected.x-p.x,projected.y-p.y);
+    if(error>80){p.x=projected.x;p.y=projected.y;}
+    else{const alpha=1-Math.exp(-dt*7);p.x+=(projected.x-p.x)*alpha;p.y+=(projected.y-p.y)*alpha;}
+  }else{
+    // Show remote actors slightly in the past, interpolating actual states,
+    // rather than chasing snapshot destinations and stopping every 100 ms.
+    const a=h.prev,b=h.latest,duration=b.t-a.t;
+    const renderT=now-REMOTE_DELAY_MS;
+    let tx=b.x,ty=b.y;
+    if(duration>1&&renderT<b.t){
+      const u=Math.max(0,Math.min(1,(renderT-a.t)/duration));
+      tx=a.x+(b.x-a.x)*u;ty=a.y+(b.y-a.y)*u;
+    }else if(duration>1 && now-b.t<180){
+      const extra=Math.min(MAX_REMOTE_EXTRAP_MS,Math.max(0,renderT-b.t));
+      const speedLimit=id.startsWith('p')?145:90;
+      const vx=Math.max(-speedLimit,Math.min(speedLimit,(b.x-a.x)*1000/duration));
+      const vy=Math.max(-speedLimit,Math.min(speedLimit,(b.y-a.y)*1000/duration));
+      tx+=vx*extra/1000;ty+=vy*extra/1000;
+    }
+    p.x=tx;p.y=ty;
+  }
+  return p;
 }
 const SCARF_COLORS={rojo:'#f66e77',azul:'#69b9f3',verde:'#82e79c',naranja:'#ffae63'};
 function playerColor(index,color){return SCARF_COLORS[color]||Object.values(SCARF_COLORS)[index%4];}
@@ -493,12 +637,14 @@ function processCombatFeedback(snapshot){
 function drawEntity(entry,step,t){
   const {kind,obj,index}=entry;
   const id=kind==='enemy'?'e'+obj.id:'p'+obj.key;
-  const pos=smoothPosition(id,obj.x,obj.y,step),x=Math.round(pos.x),y=Math.round(pos.y);
+  const pos=smoothPosition(id,obj.x,obj.y,step,kind==='player'&&obj.key===app.key),x=Math.round(pos.x),y=Math.round(pos.y);
   const isPlayer=kind==='player';const boss=!isPlayer&&obj.kind==='boss';
   const name=isPlayer?'knight_'+(obj.color||'rojo'):obj.kind;
   const sheet=app.images[name+'_sheet'];
   const legacy=app.images[!isPlayer?obj.kind:name];
-  const pose=animatedPose(id,obj,isPlayer,t);
+  const visualObj=isPlayer&&obj.key===app.key ?
+    {...obj,moving:pos.predictedMoving??obj.moving,face:pos.predictedFace||obj.face}:obj;
+  const pose=animatedPose(id,visualObj,isPlayer,t);
   ctx.fillStyle='rgba(7,12,21,.44)';ctx.beginPath();ctx.ellipse(x,y+12,boss?26:18,6,0,0,Math.PI*2);ctx.fill();
   if(isPlayer){
     ctx.fillStyle=playerColor(index,obj.color);ctx.fillRect(x-22,y+13,44,3);
@@ -518,10 +664,17 @@ function drawEntity(entry,step,t){
   ctx.restore();
   if(isPlayer){
     if(obj.blocking){
-      const pulse=.62+.24*Math.sin(t*19);
+      const pulse=.70+.18*Math.sin(t*13);
       ctx.strokeStyle='rgba(134,229,255,'+pulse+')';ctx.lineWidth=3;
-      ctx.beginPath();ctx.arc(x,y-7,30,Math.PI*1.2,Math.PI*2.75);ctx.stroke();
-      ctx.fillStyle='#c9f5ff99';ctx.fillRect(x-28,y-25,3,12);
+      ctx.beginPath();ctx.arc(x,y-7,31,Math.PI*1.12,Math.PI*2.8);ctx.stroke();
+      // Pixel shards rotate around the shield for the full two-second guard.
+      for(let k=0;k<8;k++){
+        const ang=t*1.75+k*Math.PI/4;
+        const px=Math.round(x+Math.cos(ang)*32),py=Math.round(y-7+Math.sin(ang)*31);
+        ctx.fillStyle=k%2?'#8fe5ff':'#e7fcff';ctx.fillRect(px-2,py-2,5,5);
+        ctx.fillStyle='#4898c5';ctx.fillRect(px,py,2,2);
+      }
+      ctx.strokeStyle='#e1f9ff88';ctx.lineWidth=1;ctx.strokeRect(x-27,y-37,54,63);
     }
     if(obj.paralyzed){ctx.fillStyle='#c6e4ff';ctx.font='bold 17px monospace';ctx.textAlign='center';ctx.fillText('✧',x,y-53);}
     if(obj.poisoned){ctx.fillStyle='#a8f88a';ctx.fillRect(x-9,y-53,18,4);}
@@ -594,8 +747,9 @@ function paint(step,time){
   ctx.save();
   const zoom=app.cameraZoom;
   const mine=state.players.find(p=>p.key===app.key) || state.players[0];
-  const cameraX=Math.max(0,Math.min(W-W/zoom,(mine?.x||W/2)-W/zoom/2));
-  const cameraY=Math.max(0,Math.min(H-H/zoom,(mine?.y||H/2)-H/zoom/2));
+  const visualMe=app.view.get('p'+app.key);
+  const cameraX=Math.max(0,Math.min(W-W/zoom,(visualMe?.x??mine?.x??W/2)-W/zoom/2));
+  const cameraY=Math.max(0,Math.min(H-H/zoom,(visualMe?.y??mine?.y??H/2)-H/zoom/2));
   ctx.scale(zoom,zoom);ctx.translate(-cameraX,-cameraY);
   if(app.shake>0){const mag=Math.ceil(app.shake);ctx.translate(Math.round(Math.sin(time*92)*mag),Math.round(Math.cos(time*67)*mag));app.shake=Math.max(0,app.shake-step*23);}
   ctx.drawImage(app.tileCanvas,0,0);
@@ -627,6 +781,12 @@ function paint(step,time){
 }
 function animate(now){
   const dt=Math.min(.07,(now-app.lastFrame)/1000||.016);app.lastFrame=now;
+  app.perfFrames++;
+  if(now-app.perfSampleAt>=1000){
+    app.fps=Math.round(app.perfFrames*1000/(now-app.perfSampleAt));
+    app.perfFrames=0;app.perfSampleAt=now;
+    if(app.netIndicator)app.netIndicator.textContent='RED ~'+Math.round(app.rttMs)+' ms · '+app.fps+' FPS';
+  }
   paint(dt,now/1000);requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

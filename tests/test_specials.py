@@ -103,7 +103,7 @@ class MechanicsTests(unittest.TestCase):
             r._damage_player(defender,20,attacker,t+.6)
         self.assertEqual(defender['hp'],78)
         r._defend(defender,t+1.1)
-        self.assertEqual(defender['block_until'],t+1)
+        self.assertEqual(defender['block_until'],t+DEFENSE_DURATION)
         r._defend(defender,t+3.1)
         self.assertGreater(defender['block_until'],t+3)
         self.assertEqual(defender['hp'],78)

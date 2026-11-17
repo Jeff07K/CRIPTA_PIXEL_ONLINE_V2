@@ -39,7 +39,7 @@ GAME_MODES = ('solo', 'coop', 'pvp')
 SCARF_COLORS = ('rojo', 'azul', 'verde', 'naranja')
 SPECIALS = ('brutal', 'distancia', 'veneno', 'paralisis')
 SPECIAL_COOLDOWN = 6.0
-DEFENSE_DURATION = 1.0
+DEFENSE_DURATION = 2.0
 DEFENSE_COOLDOWN = 3.0
 POISON_TICKS = 3  # 25 % de HP actual por segundo, durante tres segundos.
 PARALYSIS_DURATION = 3.0
@@ -341,6 +341,7 @@ class Room:
                 'special_ready_in': round(max(0.0, p['special_cd']-now), 1),
                 'defense_ready_in': round(max(0.0, p['defense_cd']-now), 1),
                 'blocking': p['block_until'] > now,
+                'block_remaining': round(max(0.0, p['block_until']-now), 1),
                 'block_reduction': round(p['block_reduction']*100, 1) if p['block_until'] > now else 0,
                 'paralyzed': p['paralyzed_until'] > now,
                 'poisoned': p['poison_ticks'] > 0, 'moving': p['moving'],
@@ -718,6 +719,14 @@ class GameServer:
                 room = self.rooms.get(peer.room_id)
                 if room and room.status == 'playing' and peer.key in room.players:
                     p = room.players[peer.key]
+                    seq = msg.get('seq')
+                    if seq is not None:
+                        # Ignorar controles que llegaron fuera de orden en la red.
+                        if type(seq) is not int or not 0 <= seq <= 9_000_000_000_000_000:
+                            return
+                        if seq <= p.get('input_seq', -1):
+                            return
+                        p['input_seq'] = seq
                     p['last_input'] = time.monotonic()
                     for axis in ('dx', 'dy'):
                         value = msg.get(axis, 0)
@@ -864,10 +873,14 @@ class GameServer:
     def _tick_loop(self):
         interval = 1 / FPS_SERVER
         previous = time.monotonic()
+        last_snapshot = previous
         while self.running:
             start = time.monotonic()
             delta = min(0.07, start - previous)
             previous = start
+            # Fisica/colisiones: 20Hz. Red: hasta 12Hz (~40% menos snapshots).
+            # Los eventos de ataque Q/E se procesan en el tick siguiente.
+            send_snapshot = start - last_snapshot >= (1 / 12)
             with self.lock:
                 for room in list(self.rooms.values()):
                     if room.status != 'playing':
@@ -875,8 +888,10 @@ class GameServer:
                     result = room.tick(delta, start)
                     if result:
                         self._finish(room, result)
-                    else:
+                    elif send_snapshot:
                         room.broadcast(room.snapshot())
+            if send_snapshot:
+                last_snapshot = start
             time.sleep(max(0.001, interval - (time.monotonic() - start)))
 
 
