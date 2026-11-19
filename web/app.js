@@ -389,13 +389,17 @@ $('touch-defend').addEventListener('pointerdown',e=>{e.preventDefault();app.defe
    const action=attack||special_attack||defend;
    const now=Date.now(), changed=dx!==app.lastMove.dx||dy!==app.lastMove.dy;
    if(!changed&&!action&&(!(dx||dy)||now-app.lastMove.at<250))return;
-   if(app.inputBusy&&!priority&&!action)return;
+   // A turn or stop must never wait for a slow periodic heartbeat.
+   // The seq number prevents late HTTP requests undoing the newest direction.
+   if(app.inputBusy&&!priority&&!action&&!changed)return;
    app.attackQueued=app.specialQueued=app.defendQueued=false;
    app.lastMove={dx,dy,at:now};
    const seq=app.inputSeq=Math.max(app.inputSeq+1,Date.now()*1000);
-   if(!action)app.inputBusy=true;
+   // Throttle ONLY repeated heartbeats, not keyboard/touch direction changes.
+   const heartbeat=!action&&!changed;
+   if(heartbeat)app.inputBusy=true;
    send({type:'input',seq,dx,dy,attack,special_attack,defend}).finally(()=>{
-     if(!action){app.inputBusy=false;requestInput();}
+     if(heartbeat){app.inputBusy=false;requestInput();}
    });
  }
  setInterval(()=>requestInput(),50);
@@ -473,18 +477,25 @@ function tileCache(state){
 }
 // Visual interpolation and prediction never change the server-authoritative
 // coordinates, collisions, HP, scores or combat rules.
-const ACTOR_SPEED=145, REMOTE_DELAY_MS=105, MAX_REMOTE_EXTRAP_MS=65;
+const ACTOR_SPEED=145, REMOTE_DELAY_MS=135, MAX_REMOTE_EXTRAP_MS=45;
 function recordPositions(state){
-  const t=performance.now();
-  const seen=new Set();
+  const t=performance.now(),seen=new Set();
   for(const [prefix,list] of [['p',state.players],['e',state.enemies]])for(const ob of list){
     const key=prefix+(prefix==='p'?ob.key:ob.id);seen.add(key);
-    const latest={x:ob.x,y:ob.y,t};
+    const latest={x:ob.x,y:ob.y,t,moving:ob.moving};
     const history=app.positionHistory.get(key);
-    // Reset immediately on teleport, respawn or a new level.
+    // Real teleports, PvP respawns and changes of floor are immediate.
     if(!history||Math.hypot(ob.x-history.latest.x,ob.y-history.latest.y)>100){
-      app.positionHistory.set(key,{prev:latest,latest});app.view.delete(key);
-    }else app.positionHistory.set(key,{prev:history.latest,latest});
+      app.positionHistory.set(key,{prev:latest,latest,samples:[latest]});
+      app.view.delete(key);
+    }else{
+      const samples=history.samples||[history.prev,history.latest];
+      // Keep a timeline instead of replacing the two interpolation endpoints.
+      // A delayed packet must not rewind the render timeline on arrival.
+      samples.push(latest);
+      while(samples.length>12||samples.length>2&&samples[1].t<t-900)samples.shift();
+      app.positionHistory.set(key,{prev:history.latest,latest,samples});
+    }
   }
   for(const key of app.positionHistory.keys())if(!seen.has(key))app.positionHistory.delete(key);
 }
@@ -511,41 +522,77 @@ function smoothPosition(id,x,y,dt,isLocal=false){
   const h=app.positionHistory.get(id),now=performance.now();
   if(!h){const direct={x,y};app.view.set(id,direct);return direct;}
   let p=app.view.get(id);
-  if(!p||Math.hypot(p.x-x,p.y-y)>100){p={x,y};app.view.set(id,p);}
+  // Large authoritative jumps are real teleports/respawns, not network jitter.
+  if(!p||Math.hypot(p.x-x,p.y-y)>135){p={x,y};app.view.set(id,p);}
+  const delta=Math.max(0,Math.min(.07,dt||0));
   if(isLocal){
     const s=new Set([...app.pressed,...app.touch]);
     let dx=Number(s.has('right'))-Number(s.has('left'));
     let dy=Number(s.has('down'))-Number(s.has('up'));
-    if(app.state?.players.find(o=>o.key===app.key)?.paralyzed)dx=dy=0;
+    const me=app.state?.players.find(o=>o.key===app.key);
+    if(me?.paralyzed||me?.hp<=0)dx=dy=0;
     const mag=Math.hypot(dx,dy);if(mag>0){dx/=mag;dy/=mag;}
     const freshness=now-h.latest.t;
-    // Local rendering reacts on this frame; stop predicting on stale network.
+    const canPredict=freshness<500&&mag>0;
     const beforeX=p.x,beforeY=p.y;
-    if(freshness<420&&mag>0)moveVisual(p,dx*ACTOR_SPEED*dt,dy*ACTOR_SPEED*dt,app.state.map);
-    p.predictedMoving=mag>0&&freshness<420&&Math.hypot(p.x-beforeX,p.y-beforeY)>.05;
+    if(canPredict)moveVisual(p,dx*ACTOR_SPEED*delta,dy*ACTOR_SPEED*delta,app.state?.map);
+    p.predictedMoving=canPredict&&Math.hypot(p.x-beforeX,p.y-beforeY)>.05;
     p.predictedFace=mag>0?(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')):null;
-    const lead=Math.max(0,Math.min(.19,Math.min(180,freshness)/1000+app.rttMs/2000));
-    const projected=moveVisual({x,y},dx*ACTOR_SPEED*lead,dy*ACTOR_SPEED*lead,app.state.map);
-    const error=Math.hypot(projected.x-p.x,projected.y-p.y);
-    if(error>80){p.x=projected.x;p.y=projected.y;}
-    else{const alpha=1-Math.exp(-dt*7);p.x+=(projected.x-p.x)*alpha;p.y+=(projected.y-p.y)*alpha;}
-  }else{
-    // Show remote actors slightly in the past, interpolating actual states,
-    // rather than chasing snapshot destinations and stopping every 100 ms.
-    const a=h.prev,b=h.latest,duration=b.t-a.t;
-    const renderT=now-REMOTE_DELAY_MS;
-    let tx=b.x,ty=b.y;
-    if(duration>1&&renderT<b.t){
-      const u=Math.max(0,Math.min(1,(renderT-a.t)/duration));
-      tx=a.x+(b.x-a.x)*u;ty=a.y+(b.y-a.y)*u;
-    }else if(duration>1 && now-b.t<180){
-      const extra=Math.min(MAX_REMOTE_EXTRAP_MS,Math.max(0,renderT-b.t));
-      const speedLimit=id.startsWith('p')?145:90;
-      const vx=Math.max(-speedLimit,Math.min(speedLimit,(b.x-a.x)*1000/duration));
-      const vy=Math.max(-speedLimit,Math.min(speedLimit,(b.y-a.y)*1000/duration));
-      tx+=vx*extra/1000;ty+=vy*extra/1000;
+    // Server positions are old by the time they arrive. Account for this age
+    // once, then use low-speed, collision-aware reconciliation so a fresh
+    // snapshot cannot visibly yank a moving character backwards.
+    const lead=canPredict?Math.min(.16,Math.max(0,app.rttMs||0)/2000+Math.min(200,Math.max(0,freshness))/1000):0;
+    const target=canPredict?moveVisual({x,y},dx*ACTOR_SPEED*lead,dy*ACTOR_SPEED*lead,app.state?.map):{x,y};
+    const errorX=target.x-p.x,errorY=target.y-p.y;
+    const correction=Math.min(1,1-Math.exp(-delta*(canPredict?3.5:8)));
+    let cx=errorX*correction,cy=errorY*correction;
+    const maxCorrection=(canPredict?46:110)*delta;
+    const size=Math.hypot(cx,cy);
+    if(size>maxCorrection&&size>0){cx*=maxCorrection/size;cy*=maxCorrection/size;}
+    if(canPredict){
+      // Reconciliation must not reverse forward motion while the key is held.
+      // Strong corrections still converge gradually after releasing the key.
+      const backwards=cx*dx+cy*dy;
+      const limit=-ACTOR_SPEED*delta*.2;
+      if(backwards<limit){const excess=limit-backwards;cx+=dx*excess;cy+=dy*excess;}
     }
-    p.x=tx;p.y=ty;
+    moveVisual(p,cx,cy,app.state?.map);
+  }else{
+    // Monotonic interpolation clock over the recent packet history. The old V4
+    // restarted the interval on every new packet and assigned p=target directly,
+    // which could visibly step backwards on a jittery Render connection.
+    const samples=h.samples||[h.prev,h.latest];
+    const renderT=now-REMOTE_DELAY_MS;
+    let tx=samples[0].x,ty=samples[0].y;
+    if(samples.length>1){
+      const last=samples[samples.length-1];
+      if(renderT>=last.t){
+        tx=last.x;ty=last.y;
+        const a=samples[samples.length-2],gap=last.t-a.t;
+        if(gap>1&&last.moving!==false&&now-last.t<240){
+          const extra=Math.min(MAX_REMOTE_EXTRAP_MS,Math.max(0,renderT-last.t));
+          const speedLimit=id.startsWith('p')?ACTOR_SPEED:90;
+          const vx=(last.x-a.x)*1000/gap,vy=(last.y-a.y)*1000/gap;
+          const speed=Math.hypot(vx,vy),scale=speed>speedLimit?speedLimit/speed:1;
+          tx+=vx*scale*extra/1000;ty+=vy*scale*extra/1000;
+        }
+      }else{
+        for(let i=1;i<samples.length;i++){
+          const a=samples[i-1],b=samples[i];
+          if(renderT<=b.t){
+            const u=Math.max(0,Math.min(1,(renderT-a.t)/Math.max(1,b.t-a.t)));
+            tx=a.x+(b.x-a.x)*u;ty=a.y+(b.y-a.y)*u;break;
+          }
+        }
+      }
+    }
+    const distance=Math.hypot(tx-p.x,ty-p.y);
+    // Blend only small corrections; preserve instant respawns and floor teleports.
+    if(distance>100){p.x=tx;p.y=ty;}
+    else{
+      const alpha=1-Math.exp(-delta*18);
+      p.x+=(tx-p.x)*alpha;p.y+=(ty-p.y)*alpha;
+    }
   }
   return p;
 }
