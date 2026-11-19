@@ -6,7 +6,7 @@ const app = {
   session:null, key:'',name:'',scene:'auth',room:null,state:null,results:null,
   ranking:[],rankDay:'',rankMode:'solo', active:true, lastState:0,lastPoll:0,
   inputBusy:false,attackQueued:false,specialQueued:false,defendQueued:false,specialChoice:'brutal',pressed:new Set(),touch:new Set(),
-  stream:null,streamActive:false,nextStreamTry:0,inputSeq:Date.now()*1000,lastMove:{dx:0,dy:0,at:0},
+  stream:null,streamActive:false,nextStreamTry:0,inputSeq:Date.now()*1000,lastMove:{dx:0,dy:0,at:0},leaving:false,ignoredRoomCode:'',pendingHeartbeats:0,
   view:new Map(),positionHistory:new Map(),worldProps:[],floorKey:'',tileCanvas:null,minimapBase:null,lastFrame:performance.now(),
   rttMs:80,perfFrames:0,perfSampleAt:performance.now(),fps:60,netIndicator:null,hudRoster:'',
   images:{}, frame:0,requestInProgress:false,animations:new Map(),particles:[],previousHP:new Map(),specialEffects:[],effectSeq:new Map(),shake:0,soundEnabled:true,audio:null,cameraZoom:1.12
@@ -153,6 +153,7 @@ function handleMessage(event){
     return;
   }
   if(type==='room_state'){
+    if(app.leaving || (!app.room && app.ignoredRoomCode===event.code))return;
     app.room=event;
     const mine=(event.loadouts||[]).find(p=>p.name===app.name);
     if(mine&&app.scene!=='game')chooseSpecial(mine.special);
@@ -161,6 +162,7 @@ function handleMessage(event){
     return;
   }
   if(type==='game_state'){
+    if(app.leaving || (!app.room && app.ignoredRoomCode===event.code))return;
     // Network snapshots can omit the unchanged terrain to reduce bandwidth.
     // A new room/floor must always arrive with a full terrain map.
     if(!event.map && app.state?.code===event.code && app.state?.floor===event.floor)event.map=app.state.map;
@@ -210,18 +212,39 @@ $('lobby-special').addEventListener('change',async()=>{
   const ok=await send({type:'equip_special',special:value});
   if(ok)chooseSpecial(value);
 });
-$('create-solo').addEventListener('click',()=>send({type:'create_room',mode:'solo',special:app.specialChoice}));
-$('create-coop').addEventListener('click',()=>send({type:'create_room',mode:'coop',special:app.specialChoice}));
-$('create-pvp').addEventListener('click',()=>send({type:'create_room',mode:'pvp',special:app.specialChoice}));
+$('create-solo').addEventListener('click',()=>{app.ignoredRoomCode='';send({type:'create_room',mode:'solo',special:app.specialChoice});});
+$('create-coop').addEventListener('click',()=>{app.ignoredRoomCode='';send({type:'create_room',mode:'coop',special:app.specialChoice});});
+$('create-pvp').addEventListener('click',()=>{app.ignoredRoomCode='';send({type:'create_room',mode:'pvp',special:app.specialChoice});});
 $('join-room').addEventListener('click',()=>{
   const code=$('room-code').value.trim().toUpperCase();if(!/^[A-F0-9]{6}$/.test(code)){toast('Introduce el código de 6 caracteres de la sala.');return;}
-  send({type:'join_room',code,special:app.specialChoice});
+  app.ignoredRoomCode='';send({type:'join_room',code,special:app.specialChoice});
 });
 $('room-code').addEventListener('keydown',e=>{if(e.key==='Enter')$('join-room').click();});
 $('start-game').addEventListener('click',()=>send({type:'start_room'}));
-async function leave(){await send({type:'leave_room'});app.state=null;app.room=null;app.view.clear();app.animations.clear();app.previousHP.clear();app.specialEffects=[];app.effectSeq.clear();app.particles=[];app.floorKey='';scene('home');}
+// Salida de un toque: la confirmacion nativa puede ser bloqueada en navegadores
+// moviles. No salir localmente hasta que el servidor acepte leave_room.
+async function leave(){
+  if(app.leaving)return false;
+  app.leaving=true;
+  const button=$('leave-game'),label=button.textContent;
+  button.disabled=true;button.textContent='SALIENDO...';
+  app.pressed.clear();app.touch.clear();
+  try{
+    const previousCode=app.room?.code||app.state?.code||'';
+    const ok=await send({type:'leave_room'});
+    if(!ok){toast('No se pudo abandonar. Comprueba la conexion e intentalo otra vez.');return false;}
+    app.ignoredRoomCode=previousCode;
+    app.state=null;app.room=null;app.hudRoster='';app.view.clear();app.positionHistory.clear();
+    app.animations.clear();app.previousHP.clear();app.specialEffects=[];app.effectSeq.clear();
+    app.particles=[];app.floorKey='';app.minimapBase=null;
+    app.lastMove={dx:0,dy:0,at:0};
+    scene('home');return true;
+  }finally{
+    app.leaving=false;button.disabled=false;button.textContent=label;
+  }
+}
 $('exit-lobby').addEventListener('click',leave);
-$('leave-game').addEventListener('click',()=>{if(confirm('¿Abandonar esta partida? Perderás tu progreso de esta ronda.'))leave();});
+$('leave-game').addEventListener('click',leave);
 $('results-home').addEventListener('click',leave);
 $('results-ranking').addEventListener('click',async()=>{await send({type:'leave_room'});app.room=null;app.state=null;app.rankMode=app.results?.mode||'solo';scene('ranking');});
 $('show-rank').addEventListener('click',()=>scene('ranking'));
@@ -381,7 +404,7 @@ $('touch-defend').addEventListener('pointerdown',e=>{e.preventDefault();app.defe
  // si se mantiene el movimiento. Las acciones tienen prioridad y no esperan a
  // una peticion de movimiento lenta. seq protege frente a llegadas desordenadas.
  function requestInput(priority=false){
-   if(app.scene!=='game'||!app.session)return;
+   if(app.scene!=='game'||!app.session||app.leaving)return;
    const s=new Set([...app.pressed,...app.touch]);
    const dx=Number(s.has('right'))-Number(s.has('left'));
    const dy=Number(s.has('down'))-Number(s.has('up'));
@@ -391,15 +414,15 @@ $('touch-defend').addEventListener('pointerdown',e=>{e.preventDefault();app.defe
    if(!changed&&!action&&(!(dx||dy)||now-app.lastMove.at<250))return;
    // A turn or stop must never wait for a slow periodic heartbeat.
    // The seq number prevents late HTTP requests undoing the newest direction.
-   if(app.inputBusy&&!priority&&!action&&!changed)return;
+   if(!priority&&!action&&!changed&&app.pendingHeartbeats>=2)return;
    app.attackQueued=app.specialQueued=app.defendQueued=false;
    app.lastMove={dx,dy,at:now};
    const seq=app.inputSeq=Math.max(app.inputSeq+1,Date.now()*1000);
    // Throttle ONLY repeated heartbeats, not keyboard/touch direction changes.
    const heartbeat=!action&&!changed;
-   if(heartbeat)app.inputBusy=true;
+   if(heartbeat)app.pendingHeartbeats++;
    send({type:'input',seq,dx,dy,attack,special_attack,defend}).finally(()=>{
-     if(heartbeat){app.inputBusy=false;requestInput();}
+     if(heartbeat){app.pendingHeartbeats=Math.max(0,app.pendingHeartbeats-1);requestInput();}
    });
  }
  setInterval(()=>requestInput(),50);
@@ -526,37 +549,41 @@ function smoothPosition(id,x,y,dt,isLocal=false){
   if(!p||Math.hypot(p.x-x,p.y-y)>135){p={x,y};app.view.set(id,p);}
   const delta=Math.max(0,Math.min(.07,dt||0));
   if(isLocal){
-    const s=new Set([...app.pressed,...app.touch]);
-    let dx=Number(s.has('right'))-Number(s.has('left'));
-    let dy=Number(s.has('down'))-Number(s.has('up'));
+    const keys=new Set([...app.pressed,...app.touch]);
+    let dx=Number(keys.has('right'))-Number(keys.has('left'));
+    let dy=Number(keys.has('down'))-Number(keys.has('up'));
     const me=app.state?.players.find(o=>o.key===app.key);
     if(me?.paralyzed||me?.hp<=0)dx=dy=0;
     const mag=Math.hypot(dx,dy);if(mag>0){dx/=mag;dy/=mag;}
-    const freshness=now-h.latest.t;
-    const canPredict=freshness<500&&mag>0;
+    const freshness=now-h.latest.t,canPredict=freshness<500&&mag>0;
     const beforeX=p.x,beforeY=p.y;
-    if(canPredict)moveVisual(p,dx*ACTOR_SPEED*delta,dy*ACTOR_SPEED*delta,app.state?.map);
+    if(canPredict){
+      // Hard cap on local dead reckoning. V4.1 moved 145px/s forever while
+      // the server stood still; at 135px discrepancy it teleported backwards.
+      // Never advance past a small, collision-tested lead from the latest
+      // authoritative position, even if the player holds a key for minutes.
+      const lead=Math.min(28,Math.max(16,ACTOR_SPEED*(.055+Math.min(350,Math.max(0,app.rttMs||0))/2000)));
+      const target=moveVisual({x,y},dx*lead,dy*lead,app.state?.map);
+      const forward=Math.max(0,(target.x-p.x)*dx+(target.y-p.y)*dy);
+      if(forward>.02){
+        const travel=Math.min(ACTOR_SPEED*delta,forward);
+        moveVisual(p,dx*travel,dy*travel,app.state?.map);
+      }
+      // Reconcile perpendicular drift; do not pull backwards during a held key.
+      const errX=target.x-p.x,errY=target.y-p.y;
+      const along=errX*dx+errY*dy;
+      const alpha=1-Math.exp(-delta*9);
+      moveVisual(p,(errX-dx*along)*alpha,(errY-dy*along)*alpha,app.state?.map);
+    }else if(!mag){
+      // After key release, settle the small visual lead gradually; never snap.
+      const errX=x-p.x,errY=y-p.y,dist=Math.hypot(errX,errY);
+      if(dist>.02){
+        const step=Math.min(dist,180*delta);
+        moveVisual(p,errX/dist*step,errY/dist*step,app.state?.map);
+      }
+    }
     p.predictedMoving=canPredict&&Math.hypot(p.x-beforeX,p.y-beforeY)>.05;
     p.predictedFace=mag>0?(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')):null;
-    // Server positions are old by the time they arrive. Account for this age
-    // once, then use low-speed, collision-aware reconciliation so a fresh
-    // snapshot cannot visibly yank a moving character backwards.
-    const lead=canPredict?Math.min(.16,Math.max(0,app.rttMs||0)/2000+Math.min(200,Math.max(0,freshness))/1000):0;
-    const target=canPredict?moveVisual({x,y},dx*ACTOR_SPEED*lead,dy*ACTOR_SPEED*lead,app.state?.map):{x,y};
-    const errorX=target.x-p.x,errorY=target.y-p.y;
-    const correction=Math.min(1,1-Math.exp(-delta*(canPredict?3.5:8)));
-    let cx=errorX*correction,cy=errorY*correction;
-    const maxCorrection=(canPredict?46:110)*delta;
-    const size=Math.hypot(cx,cy);
-    if(size>maxCorrection&&size>0){cx*=maxCorrection/size;cy*=maxCorrection/size;}
-    if(canPredict){
-      // Reconciliation must not reverse forward motion while the key is held.
-      // Strong corrections still converge gradually after releasing the key.
-      const backwards=cx*dx+cy*dy;
-      const limit=-ACTOR_SPEED*delta*.2;
-      if(backwards<limit){const excess=limit-backwards;cx+=dx*excess;cy+=dy*excess;}
-    }
-    moveVisual(p,cx,cy,app.state?.map);
   }else{
     // Monotonic interpolation clock over the recent packet history. The old V4
     // restarted the interval on every new packet and assigned p=target directly,
